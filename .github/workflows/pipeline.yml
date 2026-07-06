@@ -1,0 +1,73 @@
+name: Pipeline DevOps
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Validar estrutura
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo do repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validar estrutura minima
+        run: |
+          python --version
+          test -f requirements.txt
+          test -f Dockerfile
+          test -d app
+          echo "Estrutura minima validada"
+
+  test:
+    name: Executar testes
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo do repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Rodar pytest
+        run: |
+          mkdir -p reports
+          pytest --junitxml=reports/junit.xml --cov=app --cov-report=xml
+
+      - name: Salvar relatorios como artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            reports/
+            coverage.xml
+
+  build:
+    name: Build da imagem Docker
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo do repositorio
+        uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: |
+          docker build -t task-manager:${{ github.sha }} .
+          echo "Imagem criada: task-manager:${{ github.sha }}"
